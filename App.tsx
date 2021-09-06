@@ -1,11 +1,15 @@
 import { StatusBar } from "expo-status-bar";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { createStore, combineReducers } from "redux";
-import { Provider, RootStateOrAny } from "react-redux";
+import { Provider } from "react-redux";
 import AppLoading from "expo-app-loading";
 import * as Font from "expo-font";
 import { composeWithDevTools } from "redux-devtools-extension";
+import * as Notifications from "expo-notifications";
+import { ApolloClient, InMemoryCache, ApolloProvider } from "@apollo/client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { persistCache } from "apollo3-cache-persist";
 
 import productsReducer from "./store/reducers/products";
 import cartReducer from "./store/reducers/cart";
@@ -14,6 +18,16 @@ import { ShopNavigator } from "./navigation/ShopNavigator";
 import { NavigationContainer } from "@react-navigation/native";
 
 export type RootState = ReturnType<typeof rootReducer>;
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => {
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    };
+  },
+});
 
 const rootReducer = combineReducers({
   products: productsReducer,
@@ -30,9 +44,26 @@ const fetchFonts = () => {
   });
 };
 
+const cache = new InMemoryCache();
+
+const client = new ApolloClient({
+  uri: "http://192.168.101.5:4000/graphql",
+  cache,
+  defaultOptions: { watchQuery: { fetchPolicy: "cache-and-network" } },
+});
+
 export default function App() {
   const [isFontLoaded, setIsFontLoaded] = useState(false);
-  if (!isFontLoaded) {
+  const [loadingCache, setLoadingCache] = useState(true);
+
+  useEffect(() => {
+    persistCache({
+      cache,
+      storage: AsyncStorage,
+    }).then(() => setLoadingCache(false));
+  }, []);
+
+  if (!isFontLoaded || loadingCache) {
     return (
       <AppLoading
         startAsync={fetchFonts}
@@ -43,12 +74,14 @@ export default function App() {
   }
 
   return (
-    <Provider store={store}>
-      <NavigationContainer>
-        <ShopNavigator />
-      </NavigationContainer>
-      <StatusBar style="auto" />
-    </Provider>
+    <ApolloProvider client={client}>
+      <Provider store={store}>
+        <NavigationContainer>
+          <ShopNavigator />
+        </NavigationContainer>
+        <StatusBar style="auto" />
+      </Provider>
+    </ApolloProvider>
   );
 }
 

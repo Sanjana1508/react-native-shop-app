@@ -2,15 +2,30 @@ import React from "react";
 import { FlatList, Text, Platform } from "react-native";
 import { useSelector } from "react-redux";
 import { HeaderButtons, Item } from "react-navigation-header-buttons";
+import { gql, useQuery } from "@apollo/client";
 
 import ProductsTemplate from "../../components/templates/ProductsTemplate";
 import CustomHeaderButton from "../../components/atoms/CustomHeaderButton";
 import { RootState } from "../../App";
 
+const allProducts = gql`
+  query {
+    getProducts {
+      title
+      description
+      price
+      ownerId
+      id
+    }
+  }
+`;
+
 const ProductOverviewScreen = (props: Object) => {
   const products = useSelector(
     (state: RootState) => state.products.availableProducts
   );
+
+  const { loading, error, data } = useQuery(allProducts);
 
   return (
     <ProductsTemplate

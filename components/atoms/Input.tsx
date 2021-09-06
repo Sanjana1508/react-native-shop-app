@@ -1,10 +1,11 @@
-import React, { useReducer, useEffect, useCallback } from "react";
+import React, { useReducer, useEffect } from "react";
 import { TextInput, Text, View, StyleSheet } from "react-native";
+import { AnyAction } from "redux";
 
 const INPUT_CHANGE = "INPUT_CHANGE";
 const INPUT_BLUR = "INPUT_BLUR";
 
-const inputReducer = (state: Object, action: Object) => {
+const inputReducer = (state: Object, action: AnyAction) => {
   switch (action.type) {
     case INPUT_CHANGE:
       return {
@@ -31,11 +32,13 @@ const Input = (props: Object) => {
   const { onInputChange, id } = props;
 
   useEffect(() => {
-    if (inputState.touched)
+    if (inputState.touched) {
       onInputChange(id, inputState.value, inputState.isValid);
+    }
   }, [inputState, id, onInputChange]);
 
   const textChangeHandler = (text: string) => {
+    dispatch({ type: INPUT_BLUR });
     const emailRegex =
       /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
     let isValid = true;
@@ -70,10 +73,6 @@ const Input = (props: Object) => {
         value={inputState.value}
         onChangeText={textChangeHandler}
         onBlur={lostFocusHandler}
-        keyboardType="default"
-        autoCapitalize="sentences"
-        autoCorrect
-        returnKeyType="next"
       />
       {!inputState.isValid && inputState.touched && (
         <View style={styles.errorContainer}>

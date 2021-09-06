@@ -1,9 +1,9 @@
+import { AnyAction } from "redux";
 import PRODUCTS from "../../data/dummy-data";
 import Product from "../../models/product";
 import {
   CREATE_PRODUCT,
   DELETE_PRODUCT,
-  updateProduct,
   UPDATE_PRODUCT,
 } from "../actions/productActions";
 import { productAction } from "../actions/productActions";
@@ -13,12 +13,12 @@ export type product = {
   userProducts: Array<Product>;
 };
 
-const initialState: Object = {
+const initialState: product = {
   availableProducts: PRODUCTS,
   userProducts: PRODUCTS.filter((prod) => prod.ownerId === "u1"),
 };
 
-export default (state = initialState, action: productAction) => {
+export default (state = initialState, action: AnyAction) => {
   switch (action.type) {
     case CREATE_PRODUCT:
       const newProduct = new Product(
@@ -38,6 +38,7 @@ export default (state = initialState, action: productAction) => {
       const productIndex = state.userProducts.findIndex(
         (prod: Product) => prod.id === action.pid
       );
+      // console.log(action.productData);
       const updatedProduct = new Product(
         action.pid,
         state.userProducts[productIndex].ownerId,

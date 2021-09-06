@@ -41,7 +41,7 @@ const ProductList = (props: Object) => {
         title={itemData.item.title}
         price={itemData.item.price}
         onSelect={
-          props.user
+          props.user === true
             ? () => {
                 editItemHandler(itemData.item.id);
               }
@@ -54,7 +54,7 @@ const ProductList = (props: Object) => {
           color={Colors.primary}
           title={props.user ? "Edit" : "View Details"}
           onPress={
-            props.user
+            props.user === true
               ? () => {
                   editItemHandler(itemData.item.id);
                 }
@@ -67,7 +67,7 @@ const ProductList = (props: Object) => {
           color={Colors.primary}
           title={props.user ? "Delete" : "To Cart"}
           onPress={
-            props.user
+            props.user === true
               ? deleteHandler.bind(this, itemData.item.id)
               : () => {
                   dispatch(cartActions.addToCart(itemData.item));
