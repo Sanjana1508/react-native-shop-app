@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Colors } from "react-native/Libraries/NewAppScreen";
 
-const ProductDetail = (props:Object) => {
+const ProductDetail = (props: Object) => {
   return (
     <ScrollView>
       <Image style={styles.image} source={{ uri: props.data.imageUrl }} />

@@ -1,7 +1,7 @@
 import React from "react";
 import { useSelector } from "react-redux";
 import { HeaderButtons, Item } from "react-navigation-header-buttons";
-import { Platform } from "react-native";
+import { Platform, View, Text } from "react-native";
 
 import Order from "../../models/order";
 import OrderTemplate from "../../components/templates/OrderTemplate";
@@ -12,6 +12,13 @@ const OrderScreen = (props: Object) => {
   const orders: Array<Order> = useSelector(
     (state: RootState) => state.orders.orders
   );
+  if (orders.length === 0) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <Text>No orders found. Try ordering some!</Text>
+      </View>
+    );
+  }
   return <OrderTemplate data={orders} />;
 };
 

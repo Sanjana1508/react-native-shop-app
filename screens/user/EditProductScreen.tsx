@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useReducer } from "react";
+import React, { useState, useEffect, useCallback, useReducer } from "react";
 import {
   View,
   ScrollView,
@@ -6,17 +6,91 @@ import {
   Platform,
   Alert,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from "react-native";
 import { HeaderButtons, Item } from "react-navigation-header-buttons";
 import { useSelector, useDispatch } from "react-redux";
 
+import { gql, useMutation } from "@apollo/client";
+
 import CustomHeaderButton from "../../components/atoms/CustomHeaderButton";
-import * as productsActions from "../../store/actions/productActions";
 import Input from "../../components/atoms/Input";
-import AddOrEditProductTemplate from "../../components/templates/AddOrEditProductTemplate";
 import { AnyAction } from "redux";
 import { RootState } from "../../App";
+import Colors from "../../constants/Colors";
+import {
+  Maybe,
+  MutationCreateProductArgs,
+  MutationUpdateProductArgs,
+  Product,
+} from "../../types";
+import { allUserProducts } from "./UserProductsScreen";
+import { cache, queueLink } from "../../App";
 
+const create = gql`
+  mutation CreateProduct(
+    $ownerId: String!
+    $title: String!
+    $imageUrl: String!
+    $description: String!
+    $price: Float!
+  ) {
+    createProduct(
+      ownerId: $ownerId
+      title: $title
+      imageUrl: $imageUrl
+      description: $description
+      price: $price
+    ) {
+      id
+      title
+      imageUrl
+      description
+      ownerId
+      price
+    }
+  }
+`;
+
+const update = gql`
+  mutation UpdateProduct(
+    $id: Int!
+    $ownerId: String
+    $title: String
+    $imageUrl: String
+    $description: String
+    $price: Float
+  ) {
+    updateProduct(
+      id: $id
+      ownerId: $ownerId
+      title: $title
+      imageUrl: $imageUrl
+      description: $description
+      price: $price
+    ) {
+      title
+      description
+      price
+      ownerId
+      id
+      imageUrl
+    }
+  }
+`;
+
+const allProducts = gql`
+  query GetProducts {
+    getProducts {
+      title
+      description
+      price
+      ownerId
+      id
+      imageUrl
+    }
+  }
+`;
 const FORM_INPUT_UPDATE = "FORM_INPUT_UPDATE";
 
 const formReducer = (
@@ -54,12 +128,64 @@ const formReducer = (
   return state;
 };
 
-const EditProductScreen = (props: Object) => {
-  const prodId = props.route.params ? props.route.params.productId : "";
+const EditProductScreen = (props: {
+  route: { params: { productId: number } };
+  navigation: {
+    goBack: () => void;
+    setOptions: (arg0: { headerRight: () => JSX.Element }) => void;
+  };
+}) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [erroMsg, setErrorMsg] = useState("");
+
+  const [createProduct] = useMutation(create, {
+    refetchQueries: [{ query: allProducts }, { query: allUserProducts }],
+    context: {
+      serializationKey: "MUTATION",
+      tracked: true,
+    },
+    update(cache, { data: { createProduct } }) {
+      cache.modify({
+        fields: {
+          getUserProducts(existingProducts = []) {
+            const newProductRef = cache.writeFragment({
+              data: createProduct,
+              fragment: gql`
+                fragment newProduct on Product {
+                  title
+                  description
+                  price
+                  ownerId
+                  id
+                  imageUrl
+                }
+              `,
+            });
+            return [...existingProducts, newProductRef];
+          },
+        },
+      });
+    },
+  });
+
+  const [updateProduct] = useMutation<
+    Maybe<Product>,
+    MutationUpdateProductArgs
+  >(update, {
+    refetchQueries: [{ query: allProducts }, { query: allUserProducts }],
+    context: {
+      serializationKey: "MUTATION",
+      tracked: true,
+    },
+  });
+
+  const dispatch = useDispatch();
+
+  const prodId = props.route.params ? props.route.params.productId : -1;
   const editedProduct = useSelector((state: RootState) =>
     state.products.userProducts.find((prod: { id: any }) => prod.id === prodId)
   );
-  const dispatch = useDispatch();
+  const username = useSelector((state: RootState) => state.auth.username);
   const [formState, dispatchFormState] = useReducer(formReducer, {
     inputValues: {
       title: editedProduct ? editedProduct.title : "",
@@ -76,33 +202,76 @@ const EditProductScreen = (props: Object) => {
     formIsValid: editedProduct ? true : false,
   });
 
+  const updatedTitle = "updated title";
+  const updatedDesc = "updated description";
+  const updatedImage =
+    "https://images.pexels.com/photos/6292/blue-pattern-texture-macro.jpg?auto=compress&cs=tinysrgb&dpr=2&h=750&w=1260";
+  const updatedPrice = 10;
+  const updatedOwnerId = "jane";
+
   const submitHandler = useCallback(() => {
+    console.log("queue" + queueLink);
     if (!formState.formIsValid) {
       Alert.alert("Wrong input!", "Please check the errors in the form.", [
         { text: "Okay" },
       ]);
       return;
     }
-    if (editedProduct) {
-      dispatch(
-        productsActions.updateProduct(
-          prodId,
-          formState.inputValues.title,
-          formState.inputValues.description,
-          formState.inputValues.imageUrl
-        )
-      );
-    } else {
-      dispatch(
-        productsActions.createProduct(
-          formState.inputValues.title,
-          formState.inputValues.description,
-          formState.inputValues.imageUrl,
-          +formState.inputValues.price
-        )
-      );
+    setErrorMsg("");
+    setIsLoading(true);
+    try {
+      if (editedProduct) {
+        updateProduct({
+          variables: {
+            id: prodId,
+            title: formState.inputValues.title,
+            imageUrl: formState.inputValues.imageUrl,
+            description: formState.inputValues.description,
+          },
+          optimisticResponse: {
+            id: prodId,
+            title: updatedTitle,
+            imageUrl: updatedImage,
+            description: updatedDesc,
+            ownerId: updatedOwnerId,
+            price: updatedPrice,
+          },
+        })
+          .then((result) => {
+            console.log(result);
+          })
+          .catch((err) => console.log(err));
+
+        console.log("queue" + queueLink);
+      } else {
+        createProduct({
+          variables: {
+            ownerId: username,
+            title: formState.inputValues.title,
+            imageUrl: formState.inputValues.imageUrl,
+            description: formState.inputValues.description,
+            price: +formState.inputValues.price,
+          },
+          optimisticResponse: {
+            id: -1,
+            title: formState.inputValues.title,
+            imageUrl: formState.inputValues.imageUrl,
+            description: formState.inputValues.description,
+            ownerId: username,
+            price: +formState.inputValues.price,
+          },
+        })
+          .then((result) => console.log(result))
+          .catch((err) => {
+            console.log("Error" + err);
+            setErrorMsg(err.message);
+          });
+      }
+      props.navigation.goBack();
+    } catch (err) {
+      setErrorMsg(err.message);
     }
-    props.navigation.goBack();
+    setIsLoading(false);
   }, [dispatch, prodId, formState]);
 
   useEffect(() => {
@@ -123,6 +292,12 @@ const EditProductScreen = (props: Object) => {
     });
   }, [submitHandler]);
 
+  useEffect(() => {
+    if (erroMsg !== "") {
+      Alert.alert("Error occurred", erroMsg, [{ text: "Okay" }]);
+    }
+  }, [erroMsg]);
+
   const inputChangeHandler = useCallback(
     (inputIdentifier, inputValue, inputValidity) => {
       dispatchFormState({
@@ -134,6 +309,14 @@ const EditProductScreen = (props: Object) => {
     },
     [dispatchFormState]
   );
+
+  if (isLoading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -212,6 +395,11 @@ export const screenOptions = (navData: Object) => {
 const styles = StyleSheet.create({
   form: {
     margin: 20,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 

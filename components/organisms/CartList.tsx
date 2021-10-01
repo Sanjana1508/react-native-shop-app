@@ -3,12 +3,12 @@ import { FlatList } from "react-native";
 import { useDispatch } from "react-redux";
 
 import CartItem from "../molecules/CartItem";
-import * as cartActions from '../../store/actions/cartActions';
+import * as cartActions from "../../store/actions/cartActions";
 
-const CartList = (props:Object) => {
+const CartList = (props: { data: readonly any[] | null | undefined }) => {
   const dispatch = useDispatch();
 
-  const renderCartItem = (itemData:Object) => {
+  const renderCartItem = (itemData: Object) => {
     return (
       <CartItem
         quantity={itemData.item.quantity}

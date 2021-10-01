@@ -67,7 +67,13 @@ const formReducer = (
   return state;
 };
 
-const ProductManager = (props: Object) => {
+const ProductManager = (props: {
+  route: { params: { productId: string } };
+  navigation: {
+    goBack: () => void;
+    setOptions: (arg0: { headerRight: () => JSX.Element }) => void;
+  };
+}) => {
   let editedProduct: any = null;
   let productId: string;
   productId = "";

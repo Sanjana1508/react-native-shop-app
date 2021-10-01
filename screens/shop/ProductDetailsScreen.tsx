@@ -1,21 +1,43 @@
 import React from "react";
 import { useSelector } from "react-redux";
+import { gql, useQuery } from "@apollo/client";
 
 import ProductDetailTemplate from "../../components/templates/ProductDetailTemplate";
-import productsReducer from "../../store/reducers/products";
-import cartReducer from "../../store/reducers/cart";
-import orderReducer from "../../store/reducers/order";
-import product from "../../store/reducers/products";
 import { RootState } from "../../App";
+import { Product, QueryGetProductArgs } from "../../types";
 
-const ProductDetailsScreen = (props: Object) => {
+const getProduct = gql`
+  query GetProduct($id: Int!) {
+    getProduct(id: $id) {
+      title
+      description
+      price
+      ownerId
+      id
+      imageUrl
+    }
+  }
+`;
+
+const ProductDetailsScreen = (props: {
+  route: { params: { productId: number } };
+}) => {
   const productId = props.route.params.productId;
+  const { loading, error, data } = useQuery<
+    { getProduct: Array<Product> },
+    QueryGetProductArgs
+  >(getProduct, {
+    variables: { id: productId },
+  });
+  console.log(error);
   const selectedProduct = useSelector((state: RootState) =>
     state.products.availableProducts.find(
-      (product: { id: string }) => product.id === productId
+      (product: { id: number }) => product.id === productId
     )
   );
-  return <ProductDetailTemplate data={selectedProduct} />;
+
+  console.log("productId:" + productId);
+  return <ProductDetailTemplate data={data && data.getProduct} />;
 };
 
 export const screenOptions = (navData: Object) => {

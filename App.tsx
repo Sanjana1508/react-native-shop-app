@@ -1,21 +1,34 @@
 import { StatusBar } from "expo-status-bar";
 import React, { useState, useEffect } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { LogBox, StyleSheet } from "react-native";
 import { createStore, combineReducers } from "redux";
 import { Provider } from "react-redux";
 import AppLoading from "expo-app-loading";
 import * as Font from "expo-font";
-import { composeWithDevTools } from "redux-devtools-extension";
 import * as Notifications from "expo-notifications";
-import { ApolloClient, InMemoryCache, ApolloProvider } from "@apollo/client";
+import {
+  ApolloClient,
+  InMemoryCache,
+  ApolloProvider,
+  createHttpLink,
+  from,
+  ApolloLink,
+} from "@apollo/client";
+import { onError } from "@apollo/client/link/error";
+import NetInfo from "@react-native-community/netinfo";
+import { setContext } from "@apollo/client/link/context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { persistCache } from "apollo3-cache-persist";
+import QueueLink from "apollo-link-queue";
+import SerializingLink from "apollo-link-serialize";
 
 import productsReducer from "./store/reducers/products";
 import cartReducer from "./store/reducers/cart";
 import orderReducer from "./store/reducers/order";
-import { ShopNavigator } from "./navigation/ShopNavigator";
-import { NavigationContainer } from "@react-navigation/native";
+import authReducer from "./store/reducers/auth";
+import AppNavigator from "./navigation/AppNavigator";
+
+LogBox.ignoreLogs(["Setting a timer"]);
 
 export type RootState = ReturnType<typeof rootReducer>;
 
@@ -33,9 +46,10 @@ const rootReducer = combineReducers({
   products: productsReducer,
   cart: cartReducer,
   orders: orderReducer,
+  auth: authReducer,
 });
 
-const store = createStore(rootReducer);
+export const store = createStore(rootReducer);
 
 const fetchFonts = () => {
   return Font.loadAsync({
@@ -44,17 +58,77 @@ const fetchFonts = () => {
   });
 };
 
-const cache = new InMemoryCache();
+export const cache = new InMemoryCache({
+  typePolicies: {
+    Query: {
+      fields: {
+        getProducts: {
+          keyArgs: false,
+          merge(existing: any[], incoming: any[], params: Record<string, any>) {
+            const offset = params.variables.offset;
+            const merged = existing ? existing.slice(0) : [];
+            const end = offset + incoming.length;
+            for (let i = offset; i < end; ++i) {
+              merged[i] = incoming[i - offset];
+            }
+            console.log("merged:" + merged);
+            return merged;
+          },
+        },
+      },
+    },
+  },
+});
+
+const httpLink = createHttpLink({
+  uri: "http://192.168.101.6:4000/graphql",
+});
+
+export const queueLink = new QueueLink();
+const serializingLink = new SerializingLink();
+
+const authLink = setContext(async (_, { headers }) => {
+  const token = await AsyncStorage.getItem("token");
+
+  return {
+    headers: {
+      ...headers,
+      authorization: token ? `Bearer ${token}` : "",
+    },
+  };
+});
+
+const errorLink = onError(({ graphQLErrors, networkError }) => {
+  if (graphQLErrors)
+    graphQLErrors.forEach(({ message, locations, path }) =>
+      console.log(
+        `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
+      )
+    );
+
+  if (networkError) console.log(`[Network error]: ${networkError}`);
+});
 
 const client = new ApolloClient({
-  uri: "http://192.168.101.5:4000/graphql",
+  link: from([
+    authLink,
+    errorLink,
+    queueLink as unknown as ApolloLink,
+    serializingLink as unknown as ApolloLink,
+    httpLink,
+  ]),
   cache,
-  defaultOptions: { watchQuery: { fetchPolicy: "cache-and-network" } },
+  defaultOptions: {
+    watchQuery: { pollInterval: 0 },
+  },
+  name: "The Shop App",
+  version: "1.0",
 });
 
 export default function App() {
   const [isFontLoaded, setIsFontLoaded] = useState(false);
   const [loadingCache, setLoadingCache] = useState(true);
+  const [online, setOnline] = useState(false);
 
   useEffect(() => {
     persistCache({
@@ -62,6 +136,23 @@ export default function App() {
       storage: AsyncStorage,
     }).then(() => setLoadingCache(false));
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      if (state.isConnected) {
+        setOnline(true);
+        queueLink.open();
+      } else {
+        setOnline(false);
+        queueLink.close();
+      }
+    });
+    console.log("Online:" + online);
+    return () => unsubscribe();
+  }, []);
+
+  console.log("appqueue-keys" + Object.keys(queueLink));
+  console.log("appqueue-values" + Object.values(queueLink));
 
   if (!isFontLoaded || loadingCache) {
     return (
@@ -76,9 +167,7 @@ export default function App() {
   return (
     <ApolloProvider client={client}>
       <Provider store={store}>
-        <NavigationContainer>
-          <ShopNavigator />
-        </NavigationContainer>
+        <AppNavigator />
         <StatusBar style="auto" />
       </Provider>
     </ApolloProvider>

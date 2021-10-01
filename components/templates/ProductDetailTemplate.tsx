@@ -1,8 +1,9 @@
 import React from "react";
+import Product from "../../models/product";
 
-import ProductDetailOrg from '../organisms/ProductDetailOrg';
+import ProductDetailOrg from "../organisms/ProductDetailOrg";
 
-const ProductDetailTemplate = (props:Object) => {
+const ProductDetailTemplate = (props: { data: Product }) => {
   return <ProductDetailOrg data={props.data} />;
 };
 

@@ -12,7 +12,25 @@ import {
 
 import Card from "../atoms/Card";
 
-const ProductItem = (props: Object) => {
+const ProductItem = (props: {
+  onSelect: any;
+  image: any;
+  title:
+    | boolean
+    | React.ReactChild
+    | React.ReactFragment
+    | React.ReactPortal
+    | null
+    | undefined;
+  price: number;
+  children:
+    | boolean
+    | React.ReactChild
+    | React.ReactFragment
+    | React.ReactPortal
+    | null
+    | undefined;
+}) => {
   let TouchableCmp: typeof React.Component = TouchableOpacity;
   if (Platform.OS === "android" && Platform.Version >= 21) {
     TouchableCmp = TouchableNativeFeedback;

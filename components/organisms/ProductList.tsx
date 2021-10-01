@@ -1,34 +1,80 @@
-import React from "react";
-import { FlatList, Button, Alert } from "react-native";
+import React, { useState } from "react";
+import { FlatList, Button, Alert, RefreshControl } from "react-native";
 import { useDispatch } from "react-redux";
+import { gql, useMutation } from "@apollo/client";
 
 import ProductItem from "../molecules/ProductItem";
 import * as cartActions from "../../store/actions/cartActions";
-import * as productActions from "../../store/actions/productActions";
 import Colors from "../../constants/Colors";
+import { cache } from "../../App";
+import { allUserProducts } from "../../screens/user/UserProductsScreen";
 
-const ProductList = (props: Object) => {
+const allProducts = gql`
+  query GetProducts {
+    getProducts {
+      title
+      description
+      price
+      ownerId
+      id
+      imageUrl
+    }
+  }
+`;
+const del = gql`
+  mutation DeleteProduct($id: Int!) {
+    deleteProduct(id: $id) {
+      id
+      title
+    }
+  }
+`;
+
+const ProductList = (props: {
+  navigation: {
+    navigate: (
+      arg0: string,
+      arg1: { productId: number; productTitle?: string }
+    ) => void;
+  };
+  user: boolean;
+  data: readonly any[] | null | undefined;
+  refreshing: boolean;
+  onRefresh: (() => void) | undefined;
+}) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const [deleteProduct] = useMutation(del, {
+    refetchQueries: [{ query: allProducts }, { query: allUserProducts }],
+    context: {
+      serializationKey: "MUTATION",
+      tracked: true,
+    },
+  });
   const dispatch = useDispatch();
-
-  const selectItemHandler = (id: string, title: string) => {
+  console.log(props.user);
+  const selectItemHandler = (id: number, title: string) => {
     props.navigation.navigate("ProductDetail", {
       productId: id,
       productTitle: title,
     });
   };
 
-  const editItemHandler = (id: string) => {
+  const editItemHandler = (id: number) => {
     props.navigation.navigate("EditProduct", { productId: id });
   };
 
-  const deleteHandler = (id: string) => {
+  const deleteHandler = (id: number) => {
     Alert.alert("Are you sure?", "Do you really wnat to delete the item?", [
       { text: "No", style: "default" },
       {
         text: "Yes",
         style: "destructive",
         onPress: () => {
-          dispatch(productActions.deleteProduct(id));
+          //dispatch(productActions.deleteProduct(id));
+          deleteProduct({ variables: { id: id } })
+            .then((result) => console.log(result))
+            .catch((err) => console.log(err));
         },
       },
     ]);
@@ -43,10 +89,13 @@ const ProductList = (props: Object) => {
         onSelect={
           props.user === true
             ? () => {
-                editItemHandler(itemData.item.id);
+                editItemHandler(parseInt(itemData.item.id));
               }
             : () => {
-                selectItemHandler(itemData.item.id, itemData.item.title);
+                selectItemHandler(
+                  parseInt(itemData.item.id),
+                  itemData.item.title
+                );
               }
         }
       >
@@ -56,10 +105,13 @@ const ProductList = (props: Object) => {
           onPress={
             props.user === true
               ? () => {
-                  editItemHandler(itemData.item.id);
+                  editItemHandler(parseInt(itemData.item.id));
                 }
               : () => {
-                  selectItemHandler(itemData.item.id, itemData.item.title);
+                  selectItemHandler(
+                    parseInt(itemData.item.id),
+                    itemData.item.title
+                  );
                 }
           }
         />
@@ -68,7 +120,12 @@ const ProductList = (props: Object) => {
           title={props.user ? "Delete" : "To Cart"}
           onPress={
             props.user === true
-              ? deleteHandler.bind(this, itemData.item.id)
+              ? () => {
+                  console.log("deleteId:" + itemData.item.id);
+                  deleteHandler(parseInt(itemData.item.id));
+                  cache.evict({ id: itemData.item.id });
+                  cache.gc();
+                }
               : () => {
                   dispatch(cartActions.addToCart(itemData.item));
                 }
@@ -77,7 +134,19 @@ const ProductList = (props: Object) => {
       </ProductItem>
     );
   };
-  return <FlatList data={props.data} renderItem={renderProductItem} />;
+  return (
+    <FlatList
+      data={props.data}
+      renderItem={renderProductItem}
+      keyExtractor={(item) => item.id.toString()}
+      refreshControl={
+        <RefreshControl
+          refreshing={props.refreshing}
+          onRefresh={props.onRefresh}
+        />
+      }
+    />
+  );
 };
 
 export default ProductList;

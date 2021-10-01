@@ -1,5 +1,12 @@
 import React from "react";
-import { View, StyleSheet, Button, Text } from "react-native";
+import {
+  View,
+  StyleSheet,
+  Button,
+  Text,
+  ActivityIndicator,
+} from "react-native";
+import Colors from "../../constants/Colors";
 
 import Card from "../atoms/Card";
 
@@ -13,12 +20,16 @@ const CartSummary = (props: Object) => {
             ${Math.round(props.total.toFixed(2) * 100) / 100}
           </Text>
         </Text>
-        <Button
-          color="#8a3382"
-          title="Order Now"
-          disabled={props.data.length === 0}
-          onPress={props.onOrder}
-        />
+        {props.loading === true ? (
+          <ActivityIndicator size="large" color={Colors.primary} />
+        ) : (
+          <Button
+            color="#8a3382"
+            title="Order Now"
+            disabled={props.data.length === 0}
+            onPress={props.onOrder}
+          />
+        )}
       </Card>
     </View>
   );

@@ -1,0 +1,6 @@
+schema: http://192.168.101.6:4000/graphql
+generates:
+  ./types.ts:
+    plugins:
+      - typescript
+      - typescript-operations
